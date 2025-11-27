@@ -2126,6 +2126,28 @@ export class Database {
     return bookmarkId ? this.bookmarks.get(bookmarkId) || null : null;
   }
 
+  async getUserBookmarks(userId: string): Promise<(Bookmark & { conversationTitle: string })[]> {
+    await this.loadUser(userId);
+    const convIds = this.userConversations.get(userId) || new Set();
+    const results: (Bookmark & { conversationTitle: string })[] = [];
+
+    for (const convId of convIds) {
+      const conversation = this.conversations.get(convId);
+      if (!conversation || conversation.archived) continue;
+
+      const convBookmarks = Array.from(this.bookmarks.values())
+        .filter(b => b.conversationId === convId);
+
+      for (const bookmark of convBookmarks) {
+        results.push({ ...bookmark, conversationTitle: conversation.title });
+      }
+    }
+
+    return results.sort((a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
   // User Model methods
   async createUserModel(userId: string, modelData: import('@deprecated-claude/shared').CreateUserModel): Promise<UserDefinedModel> {
     await this.loadUser(userId); // Ensure user data is loaded

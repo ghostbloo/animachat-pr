@@ -43,6 +43,13 @@
               title="Manage Shares"
               @click="manageSharesDialog = true"
             />
+            
+            <v-list-item
+              prepend-icon="mdi-bookmark"
+              title="Bookmarks"
+              :class="{ 'v-list-item--active': showBookmarksPanel }"
+              @click="showBookmarksPanel = !showBookmarksPanel"
+            />
           </v-list>
 
           <v-divider />
@@ -220,8 +227,15 @@
         />
       </v-app-bar>
 
+      <!-- Bookmarks Panel -->
+      <BookmarksPanel
+        v-if="showBookmarksPanel"
+        @navigate="handleBookmarkNavigate"
+      />
+
       <!-- Messages Area -->
       <v-container
+        v-else
         ref="messagesContainer"
         class="flex-grow-1 overflow-y-auto messages-container"
         style="max-height: calc(100vh - 160px);"
@@ -256,7 +270,7 @@
       </v-container>
 
       <!-- Input Area -->
-      <v-container v-if="currentConversation" class="pa-4" style="padding-top: 0 !important">
+      <v-container v-if="currentConversation && !showBookmarksPanel" class="pa-4" style="padding-top: 0 !important">
         <!-- Branch selection indicator -->
         <v-alert
           v-if="selectedBranchForParent"
@@ -593,6 +607,7 @@ import ArcLogo from '@/components/ArcLogo.vue';
 import WelcomeDialog from '@/components/WelcomeDialog.vue';
 import ConversationTree from '@/components/ConversationTree.vue';
 import MetricsDisplay from '@/components/MetricsDisplay.vue';
+import BookmarksPanel from '@/components/BookmarksPanel.vue';
 import { getModelColor } from '@/utils/modelColors';
 
 const route = useRoute();
@@ -604,6 +619,7 @@ console.log('🔧 ConversationView loaded - UI bug fixes version - timestamp:', 
 
 const drawer = ref(true);
 const treeDrawer = ref(false);
+const showBookmarksPanel = ref(false);
 const importDialog = ref(false);
 const settingsDialog = ref(false);
 const conversationSettingsDialog = ref(false);
@@ -991,10 +1007,20 @@ onMounted(async () => {
     await loadBookmarks();
     // Scroll to bottom after messages load
     await nextTick();
-    // Add small delay for long conversations
-    setTimeout(() => {
-      scrollToBottom();
-    }, 100);
+    
+    // Check for bookmark navigation query params
+    const { messageId, branchId } = route.query;
+    if (messageId && branchId) {
+      // Navigate to the bookmarked position
+      setTimeout(async () => {
+        await navigateToTreeBranch(messageId as string, branchId as string);
+      }, 200);
+    } else {
+      // Add small delay for long conversations
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    }
   }
 
 });
@@ -1012,10 +1038,20 @@ watch(() => route.params.id, async (newId) => {
     await loadBookmarks();
     // Ensure DOM is updated before scrolling
     await nextTick();
-    // Add small delay for long conversations
-    setTimeout(() => {
-      scrollToBottom();
-    }, 100);
+    
+    // Check for bookmark navigation query params
+    const { messageId, branchId } = route.query;
+    if (messageId && branchId) {
+      // Navigate to the bookmarked position
+      setTimeout(async () => {
+        await navigateToTreeBranch(messageId as string, branchId as string);
+      }, 200);
+    } else {
+      // Add small delay for long conversations
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    }
   }
 });
 
@@ -1609,6 +1645,23 @@ async function handleBookmarkChanged() {
   if (conversationTreeRef.value) {
     await (conversationTreeRef.value as any).loadBookmarks();
   }
+}
+
+async function handleBookmarkNavigate(bookmark: { conversationId: string; messageId: string; branchId: string }) {
+  // Close the bookmarks panel
+  showBookmarksPanel.value = false;
+  
+  // Navigate to the conversation if different from current
+  if (currentConversation.value?.id !== bookmark.conversationId) {
+    await router.push(`/conversation/${bookmark.conversationId}`);
+    // Wait for the conversation to load
+    await nextTick();
+    // Give time for messages to render
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  
+  // Navigate to the correct branch using the tree navigation logic
+  await navigateToTreeBranch(bookmark.messageId, bookmark.branchId);
 }
 
 function scrollToMessage(messageId: string) {

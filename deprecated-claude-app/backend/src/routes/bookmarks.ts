@@ -6,6 +6,20 @@ import { z } from 'zod';
 export function createBookmarksRouter(db: Database): Router {
   const router = Router();
 
+  // Get all bookmarks for the authenticated user
+  router.get('/', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      const bookmarks = await db.getUserBookmarks(req.userId);
+      res.json(bookmarks);
+    } catch (error) {
+      console.error('Error fetching user bookmarks:', error);
+      res.status(500).json({ error: 'Failed to fetch bookmarks' });
+    }
+  });
+
   // Create or update a bookmark
   router.post('/', authenticateToken, async (req: AuthRequest, res) => {
     try {
